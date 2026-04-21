@@ -1,14 +1,16 @@
 import { useState } from "react";
 import { auth, provider, db } from "./firebase";
-import { signInWithPopup } from "firebase/auth";
-import { collection,
-  query,
-  where,
-  getDocs,
-  addDoc,
-  doc,
-  updateDoc,
-  arrayUnion
+import { signInWithPopup, onAuthStateChanged } from "firebase/auth";
+import { useEffect } from "react";
+import {
+    collection,
+    query,
+    where,
+    getDocs,
+    addDoc,
+    doc,
+    updateDoc,
+    arrayUnion
 } from "firebase/firestore";
 
 const API_URL = "https://samia-server.onrender.com/chat";
@@ -20,6 +22,7 @@ export default function Chat() {
     const [chats, setChats] = useState([{ id: 1, title: "Nouveau chat" }]);
     const [currentChat, setCurrentChat] = useState(1);
     const [history, setHistory] = useState([]);
+    const [screen, setScreen] = useState(null);
 
     const login = async () => {
         await signInWithPopup(auth, provider);
@@ -41,6 +44,8 @@ export default function Chat() {
 
         setHistory(data);
     };
+
+    const [conversations, setConversations] = useState([]);
 
     const createConversation = async (user) => {
         const docRef = await addDoc(collection(db, "conversations"), {
@@ -89,10 +94,19 @@ export default function Chat() {
     };
 
     const speak = (text) => {
-  const speech = new SpeechSynthesisUtterance(text);
-  speech.lang = "fr-FR";
-  window.speechSynthesis.speak(speech);
-};
+        const speech = new SpeechSynthesisUtterance(text);
+        speech.lang = "fr-FR";
+        window.speechSynthesis.speak(speech);
+    };
+
+    const fetchScreen = async () => {
+        const res = await fetch("https://samia-server.onrender.com/get_screen", {
+            headers: { Authorization: TOKEN }
+        });
+
+        const data = await res.json();
+        setScreen(data.image);
+    };
 
     const sendMessage = async () => {
         if (!input) return;
@@ -116,50 +130,72 @@ export default function Chat() {
 
         const data = await res.json();
 
-        setMessages(prev => {
-            const updated = [...prev];
-            updated.pop(); // remove "réfléchit..."
-
-            // 🔥 SI COMMANDE
-            if (data.type === "command") {
+        // 🔥 SI COMMANDE
+        if (data.type === "command") {
+            setMessages(prev => {
+                const updated = [...prev];
+                updated.pop();
                 updated.push({
                     role: "bot",
-                    text: `⚙️ Exécution de la commande: ${data.command}`
+                    text: `⚙️ Exécution: ${data.command}`
                 });
-
-                // envoyer commande au serveur agent
-                fetch("https://samia-server.onrender.com/command", {
-                    method: "POST",
-                    headers: {
-                        "Content-Type": "application/json",
-                        "Authorization": TOKEN
-                    },
-                    body: JSON.stringify({ command: data.command })
-                });
-
                 return updated;
-            }
-
-            // 🔥 SI TEXTE NORMAL
-            updated.push({
-                role: "bot",
-                text: data.response
             });
 
+            await fetch("https://samia-server.onrender.com/command", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                    "Authorization": TOKEN
+                },
+                body: JSON.stringify({ command: data.command })
+            });
+
+            return;
+        }
+
+        if (data.type === "screen") {
+            if (data.action === "start") {
+                showScreen && screen && (true);
+            } else {
+                showScreen && screen && (false);
+            }
+        }
+
+        // 🔥 SI IA → attendre réponse de l'agent
+        let answer = null;
+
+        for (let i = 0; i < 10; i++) {
+            await new Promise(r => setTimeout(r, 1000));
+
+            const res2 = await fetch("https://samia-server.onrender.com/get_answer", {
+                headers: {
+                    "Authorization": TOKEN
+                }
+            });
+
+            const data2 = await res2.json();
+
+            if (data2.answer) {
+                answer = data2.answer;
+                break;
+            }
+        }
+
+        setMessages(prev => {
+            const updated = [...prev];
+            updated.pop();
+            updated.push({
+                role: "bot",
+                text: answer || "❌ Pas de réponse"
+            });
             return updated;
         });
 
-        if (user) {
-            await addDoc(collection(db, "chats"), {
-                uid: user.uid,
-                message: tempInput,
-                response: data.response || data.command,
-                timestamp: new Date()
-            });
-        }
-
-        speak(data.response);
+        speak(answer);
     };
+
+    const [showScreen, setShowScreen] = useState(false);
 
     const newChat = () => {
         const id = chats.length + 1;
@@ -167,6 +203,11 @@ export default function Chat() {
         setMessages([]);
         setCurrentChat(id);
     };
+
+    useEffect(() => {
+        const interval = setInterval(fetchScreen, 1000);
+        return () => clearInterval(interval);
+    }, []);
 
     return (
         <div style={{ display: "flex", height: "100vh", background: "#0f172a", color: "white" }}>
@@ -238,6 +279,19 @@ export default function Chat() {
                         </div>
                     ))}
                 </div>
+
+                {screen && (
+                    <img
+                        src={`data:image/jpeg;base64,${screen}`}
+                        style={{
+                            width: "300px",
+                            position: "fixed",
+                            bottom: 10,
+                            right: 10,
+                            borderRadius: "10px"
+                        }}
+                    />
+                )}
 
                 {/* INPUT */}
                 <div style={{ padding: "10px", borderTop: "1px solid #1e293b" }}>
