@@ -6,7 +6,6 @@ export default function Login() {
   const login = async () => {
     try {
       const result = await signInWithPopup(auth, provider);
-      setUser(result.user); // 🔥 IMPORTANT
     } catch (error) {
       console.error("Erreur login:", error);
     }

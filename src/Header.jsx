@@ -1,4 +1,4 @@
-export default function Header({ user }) {
+export default function Header({ user, toggleMenu }) {
   return (
     <div style={{
       height: "60px",
@@ -9,7 +9,21 @@ export default function Header({ user }) {
       padding: "0 15px",
       color: "white"
     }}>
-      <h3>SAMIA</h3>
+      
+      <div style={{ display: "flex", alignItems: "center" }}>
+        <button onClick={toggleMenu} style={{
+          marginRight: 10,
+          fontSize: 20,
+          background: "none",
+          border: "none",
+          color: "white",
+          cursor: "pointer"
+        }}>
+          ☰
+        </button>
+
+        <h3>SAMIA</h3>
+      </div>
 
       <div style={{ display: "flex", alignItems: "center" }}>
         <img
