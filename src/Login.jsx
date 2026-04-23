@@ -4,7 +4,12 @@ import { auth, provider } from "./firebase";
 export default function Login() {
 
   const login = async () => {
-    await signInWithPopup(auth, provider);
+    try {
+      const result = await signInWithPopup(auth, provider);
+      setUser(result.user); // 🔥 IMPORTANT
+    } catch (error) {
+      console.error("Erreur login:", error);
+    }
   };
 
   return (
